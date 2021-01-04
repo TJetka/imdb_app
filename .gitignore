@@ -2,9 +2,9 @@
 .Rhistory
 .Rapp.history
 
-# Session Data files
-.RData
-.rds
+# All Data files
+*.RData
+*.rds
 
 # User-specific files
 .Ruserdata
@@ -13,8 +13,8 @@
 *-Ex.R
 
 # compressed files
-.tar
-.gz
+*.tar
+*.gz
 
 # Output files from R CMD check
 /*.Rcheck/
