@@ -4,6 +4,7 @@
 
 # Session Data files
 .RData
+.rds
 
 # User-specific files
 .Ruserdata
@@ -11,8 +12,9 @@
 # Example code in package build process
 *-Ex.R
 
-# Output files from R CMD build
-/*.tar.gz
+# compressed files
+.tar
+.gz
 
 # Output files from R CMD check
 /*.Rcheck/
