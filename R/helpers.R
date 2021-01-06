@@ -8,13 +8,15 @@ update_imdb_data<-function(target_dir="data/"){
   
   ## check current data ##
   if (file.exists(paste0(target_dir,"/","imdb_data_basic.rds"))){
-    data_imdb=readRDS(paste0(target_dir,"/","imdb_data_basic.rds"))
-    time_diff=Sys.time()-data_imdb$data_stamp
+    df_imdb=readRDS(paste0(target_dir,"/","imdb_data_basic.rds"))
+    time_diff=Sys.time()-df_imdb$data_stamp
     units(time_diff)="days"
     if (time_diff<30){
       xmsg="Current data has been downloaded less than 30 days ago. Request not initiated."
       cat(xmsg)
       binary_proceed=FALSE
+      list_output=df_imdb
+      list_output$message=xmsg
     }
   } 
   
@@ -54,7 +56,22 @@ update_imdb_data<-function(target_dir="data/"){
     
     xmsg="Data Downloaded and saved"
     cat(xmsg)
+    list_output=list(data=df_imdb_merged,data_stamp=Sys.time(),message=xmsg)
   }
   
-  list(data=df_imdb_merged,data_stamp=Sys.time(),message=xmsg)
+  list_output
 }
+
+tj_resplit<-function(df,col_name,split_char=";"){
+  df_list=list()
+  for (irow in 1:nrow(df)){
+    temp_split=str_trim(str_split(df[[col_name]][irow],split_char)[[1]])
+    df_list[[irow]]=df[rep(irow,length(temp_split)),]
+    df_list[[irow]][[col_name]]=temp_split
+  }
+  do.call(rbind,df_list)
+}
+
+
+
+

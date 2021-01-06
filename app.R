@@ -4,8 +4,13 @@ library(stringr)
 library(shinydashboard)
 library(shinyWidgets)
 library(DT)
+library(ggplot2)
 
-source("helpers.R")
+
+source("R/helpers.R")
+#source("R/modules.R")
+target_dir="data/"
+
 
 if (!file.exists(paste0("data/","imdb_data_basic.rds"))){
   update_imdb_data()
@@ -88,12 +93,22 @@ ui <- navbarPage("ImDb Application",
                                                            icon=icon("search")))),
                               textOutput(outputId = "moviesToFind_msg"),
                               fluidRow(column(12,dataTableOutput(outputId = "moviesToFind_table")))),
-                 tabPanel("Some Stats"),selected = "General"
+                 tabPanel("Some Stats",
+                          fluidRow(column(2,plotsParametersUI("rating", label="Ratings Dependencies")),
+                                   column(5,plotOutput("stats_rat_plot1")),
+                                   column(5,plotOutput("stats_rat_plot2"))),
+                          fluidRow(column(5,plotOutput("stats_rat_plot3"),offset = 2)),
+                          fluidRow(column(2,plotsParametersUI("genre", label="Genre Dependencies")),
+                                   column(5,plotOutput("stats_g_plot1")),
+                                   column(5,plotOutput("stats_g_plot2"))),
+                          fluidRow(column(5,plotOutput("stats_g_plot3"),offset = 2),
+                                   column(5,plotOutput("stats_g_plot4")))
+                           ),
+                 selected = "General"
 )
   
 
 server=function(input,output){
-  
   
   #### General ###
   data_imdb_reactive <- reactive({  
@@ -308,8 +323,108 @@ server=function(input,output){
    
   
   #### Page 4 ####
+  #data_ratings <- plotsParametersServer("rating",df=data_imdb_reactive)
+  #data_genre <- plotsParametersServer("genre",df=data_imdb_reactive)
+  # data_ratings=reactive({
+  #   temp_data=data_imdb_reactive()$data
+  #   temp_data=temp_data[!(is.na(temp_data$averageRating)|is.na(temp_data$numVotes)),]
+  #   temp_data=temp_data[temp_data$numVotes>=input$min_votes,]
+  #   return(temp_data)
+  # }) 
+  
+  #  plot1=reactive({
+  #    p=ggplot(data=data_ratings(),aes(x=numVotes,y=averageRating))+geom_smooth()+theme_bw()+
+  #    geom_point(alpha=0.01)+scale_x_log10()
+  #   return(p)
+  # })
+  
+  # plotParameters=plotsParametersServer("rating")
+  # output$stats_rat_plot1=renderText(plotParameters$data())
+  
+  data_rating=plotsParametersServer("rating",data_reactive=data_imdb_reactive)
+  plot1=reactive({
+     p=ggplot(data=data_rating$data()$data_full,aes(x=numVotes,y=averageRating))+
+       geom_smooth()+theme_bw()+
+     geom_jitter(alpha=0.01)+scale_x_log10()
+    return(p)
+  })
+  plot2=reactive({
+    p=ggplot(data=data_rating$data()$data_full,aes(x=as.numeric(startYear) ,y=averageRating))+
+      geom_smooth()+theme_bw()+
+      geom_jitter(alpha=0.01)
+    return(p)
+  })
+  plot3=reactive({
+    temp_data=data_rating$data()$data_sep
+    temp_data=temp_data[!is.na(temp_data$genres),]
+    temp_data$genres=factor(temp_data$genres,
+                            levels = names(sort(tapply(temp_data$averageRating,
+                                                       temp_data$genres,median,na.rm=TRUE))),
+                            ordered = TRUE)
+    p=ggplot(data=temp_data,aes(x=genres, fill=genres ,y=averageRating))+
+      geom_boxplot(outlier.alpha = 0,outlier.size = 0)+theme_bw()+
+      theme(axis.text.x = element_text(angle = 90,vjust=0.3),
+            axis.title.x = element_blank(),legend.position = 'none' )
+    return(p)
+  })
+  
+  output$stats_rat_plot1=renderPlot(plot1())
+  output$stats_rat_plot2=renderPlot(plot2())
+  output$stats_rat_plot3=renderPlot(plot3())
   
   
+  
+  data_genre=plotsParametersServer("genre",data_reactive=data_imdb_reactive)
+  plot11=reactive({
+    temp_data=data_genre$data()$data_sep
+    temp_data=temp_data[!is.na(temp_data$genres),]
+    temp_data$genres=factor(temp_data$genres,
+                            levels = names(sort(tapply(temp_data$numVotes,
+                                                       temp_data$genres,length))),
+                            ordered = TRUE)
+    p=ggplot(data=temp_data,aes(x=genres,fill=genres))+geom_bar()+theme_bw()+
+      theme(axis.text.x = element_text(angle = 90,vjust=0.3),
+            axis.title.x = element_blank(),legend.position = 'none' )
+    return(p)
+  })
+  plot21=reactive({
+    temp_data=data_genre$data()$data_sep
+    temp_data=do.call(rbind,by(temp_data,paste0(temp_data$genres,"_",temp_data$startYear),function(x){
+      data.frame(genres=unique(x$genres),
+                 startYear=unique(x$startYear),
+                 count=nrow(x),stringsAsFactors = FALSE)
+    }))
+    
+    temp_max=max(temp_data$count,na.rm=TRUE)
+    p1=ggplot(data=temp_data[str_sub(temp_data$genres,0,1)<"I",],aes(x=as.numeric(startYear) ,y=count,colour=genres))+
+      geom_smooth()+ theme_bw()+facet_grid(genres~.)+scale_y_continuous(limits=c(0,temp_max))+
+      theme(axis.title.x = element_blank(),legend.position = 'none' )
+    p2=ggplot(data=temp_data[str_sub(temp_data$genres,0,1)>"H",],aes(x=as.numeric(startYear) ,y=count,colour=genres))+
+      geom_smooth()+ theme_bw()+facet_grid(genres~.)+scale_y_continuous(limits=c(0,temp_max))+
+      theme(axis.title.x = element_blank(),legend.position = 'none' )
+    return(list(p1=p1,p2=p2))
+  })
+  plot31=reactive({
+    temp_data=data_genre$data()$data_sep
+    temp_data=temp_data[!is.na(temp_data$genres),]
+    temp_data$genres=factor(temp_data$genres,
+                            levels = names(sort(tapply(temp_data$numVotes,
+                                                       temp_data$genres,median,na.rm=TRUE))),
+                            ordered = TRUE)
+
+    p=ggplot(data=temp_data,aes(x=genres, fill=genres ,y=numVotes))+
+      geom_boxplot(outlier.alpha = 0,outlier.size = 0)+theme_bw()+scale_y_log10()+
+      theme(axis.text.x = element_text(angle = 90,vjust=0.3),
+            axis.title.x = element_blank(),legend.position = 'none' )
+    
+    return(p)
+  })
+  
+  output$stats_g_plot1=renderPlot(plot11())
+  output$stats_g_plot2=renderPlot(plot21()$p1)
+  output$stats_g_plot3=renderPlot(plot31())
+  output$stats_g_plot4=renderPlot(plot21()$p2)
+  # 
 }
 
 
